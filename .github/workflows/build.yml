@@ -55,6 +55,36 @@ jobs:
         path: ocgcore
         ref: ${{ steps.parse-pr-override.outputs.ocgcore-ref }}
 
+    - name: Apply FTD patch to ocgcore
+      shell: python
+      run: |
+        import sys
+        def rep(path, old, new):
+            with open(path, 'r', encoding='utf-8', newline='') as f:
+                s = f.read()
+            if s.count(old) != 1:
+                print('ERROR: pattern count=%d in %s' % (s.count(old), path))
+                print(repr(old))
+                sys.exit(1)
+            s = s.replace(old, new, 1)
+            with open(path, 'w', encoding='utf-8', newline='') as f:
+                f.write(s)
+            print('patched:', path)
+
+        rep('ocgcore/common.h',
+            '#define DUEL_REVEAL_DECK_SEQ\t0x100',
+            '#define DUEL_REVEAL_DECK_SEQ\t0x100\n#define DUEL_FIRST_TURN_DRAW\t0x200')
+
+        rep('ocgcore/field.cpp',
+            '\tif ((core.duel_rule >= 3) && (infos.turn_id == 1) && (infos.turn_player == playerid)) {',
+            '\tif (!(core.duel_options & DUEL_FIRST_TURN_DRAW) && (core.duel_rule >= 3) && (infos.turn_id == 1) && (infos.turn_player == playerid)) {')
+
+        rep('ocgcore/processor.cpp',
+            '\t\tif((core.duel_rule <= 2) || (infos.turn_id > 1)) {',
+            '\t\tif((core.duel_options & DUEL_FIRST_TURN_DRAW) || (core.duel_rule <= 2) || (infos.turn_id > 1)) {')
+
+        print('FTD patch applied OK')
+
     - name: Fetch Irrlicht
       uses: actions/checkout@v6
       with:
@@ -718,3 +748,4 @@ jobs:
         name: YGOPro-${{ matrix.name }}
         path: |
           bin/release/YGOPro
+
